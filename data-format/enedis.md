@@ -1,5 +1,7 @@
 # Formats de données accessible par les API Enedis et leur conversion Quoalise
 
+*Document de travail, en cours d’évolution…*
+
 ## Data Connect
 
 ### API Metering Data v4
