@@ -397,14 +397,14 @@ TODO Redondance entre quantity et unit
                 unit="kWh"
                 estimated="false"
                 aggregation="sum"
-                sampling-interval="86400" />
+                sampling-interval="P1D" />
       <pricing range-code="HPH"
                range-description="Heures Pleines Hiver/Saison Haute"
                type="DI000003"
                type-description="Avec différenciation temporelle et saisonnière"/>
     </meta>
     <sensml xmlns="urn:ietf:params:xml:ns:senml">
-      <senml bn="urn:dev:prm:00000000000000_consumption_load" bt="1600041600" t="0" v="0" bu="kWh" />
+      <senml bn="urn:dev:prm:00000000000000" n="consumption_load_corrected" bt="1600041600" t="0" v="0" bu="kWh" />
       <senml t="86400" v="0" />
       <senml t="172800" v="0" />
       <senml t="259200" v="0" />
@@ -812,4 +812,470 @@ pas cherché plus loin
     </sensml>
   </data>
 </quoalise>
+```
+
+
+# API
+
+Original enedis
+
+```
+ConsulterMesuresDetaillees(
+    initiateurLogin,
+    pointId,
+    mesuresTypeCode,
+    grandeurPhysique,
+    soutirage,
+    injection,
+    dateDebut,
+    dateFin,
+    mesuresPas,
+    mesuresCorrigees,
+    accordClient
+)
+```
+
+des paramètres inter dépendants, vraiment pas facile de savoir quelles valeures sont possibles dans quelles conditions
+
+vs
+
+Séparé par fonctions en fonction des paramètres possibles (pas de paramètre requis uniquement quand un autre est présent)
+
+```
+get_active_power(
+    usage_point_id,
+    direction,
+    corrected,
+    start_date,
+    end_date
+)
+
+get_energy(
+    usage_point_id,
+    direction,
+    corrected,
+    period,
+    start_date,
+    end_date,
+)
+
+…
+```
+
+vs
+
+Générique, chaque série temporelle dispose de sa propre clé, un mécanisme pour les lister / découvrir par la suite
+
+```
+get('consumption_active_power_raw', usage_point_id, start_date, end_date)
+get('consumption_active_power_corrected', …)
+get('production_active_power_raw', …)
+get('production_active_power_corrected', …)
+…
+get('consumption_energy_daily_raw', …)
+get('consumption_energy_monthly_raw', …)
+get('consumption_energy_daily_corrected', …)
+get('consumption_energy_monthly_corrected', …)
+get('consumption_energy_daily_raw', …)
+get('consumption_energy_monthly_raw', …)
+get('consumption_energy_daily_corrected', …)
+get('consumption_energy_monthly_corrected', …)
+```
+
+API Enedis vs conversion plus générique
+
+```
+MesuresDetaillees/injection/COURBE/E/BRUT
+vs
+production_voltage_corrected
+```
+
+Mais pas tout à fait générique au final (on doit donner le point et la date)
+
+Propostion Gautier
+
+Tu arrives sur le système, tu donne
+
+- dans le get la même chose que tu récupère au niveau de l’id du SENML
+    + juste les dates à rajouter
+    + séparation host (genre prm, pas forcément accessible) et série temporelle (courbe de charge)
+
+URN vs URI
+
+- URN plus récent, RFC à lire
+- on peut dire que le host contient les :, après le dernier : le nom de la série
+
+
+{"bn":"urn:dev:ow:10e2073a01080063:id_serie/sdfsd/sdfsdf","bt":1.320067464e+09
+     {"u":"lon","v":24.30621},
+     {"u":"lat","v":60.07965},
+     {"t":60,"v":20.3},
+
+
+type de requete données technique contractuelle
+dans tous les cas on veut pouvoir demander juste technique
+
+
+TODO quantité energie, comment exprimer les types / formes
+
+- electrique, thermique, cinétique etc.
+- puissance active / reactive
+- puissance active / reactive inductive / reactive capacitive
+- etc.
+- Déjà une onthologie existante?
+
+### Changement : _
+
+Dans la spec SENML
+https://datatracker.ietf.org/doc/html/rfc8428#page-15
+
+```json
+[
+     {"bn":"urn:dev:ow:10e2073a0108006:","bt":1.276020076001e+09,
+      "bu":"A","bver":5,
+      "n":"voltage","u":"V","v":120.1},
+     {"n":"current","t":-5,"v":1.2},
+]
+```
+
+Mais dans la spec URN dev
+https://datatracker.ietf.org/doc/html/draft-ietf-core-dev-urn-11#page-11
+
+```
+urn:dev:ow:264437f5000000ed_humidity    # The humidity
+                                        # part of a multi-sensor
+                                        # device
+
+urn:dev:ow:264437f5000000ed_temperature # The temperature
+                                        # part of a multi-sensor
+                                        # device
+```
+
+```
+  devurn = "urn:dev:" body componentpart
+  body = macbody / owbody / orgbody / osbody / opsbody / otherbody
+  macbody = %s"mac:" hexstring
+  owbody = %s"ow:" hexstring
+  orgbody = %s"org:" posnumber "-" identifier *( ":"  identifier )
+  osbody = %s"os:" posnumber "-" serial *( ":"  identifier )
+  opsbody = %s"ops:" posnumber "-" product "-" serial *( ":"  identifier )
+  otherbody = subtype ":" identifier *( ":"  identifier )
+  subtype = LALPHA *(DIGIT / LALPHA)
+  identifier = 1*devunreserved
+  identifiernodash = 1*devunreservednodash
+  product = identifiernodash
+  serial = identifier
+  componentpart = *( "_" identifier )
+  devunreservednodash = ALPHA / DIGIT / "."
+  devunreserved = devunreservednodash / "-"
+  hexstring = 1*(hexdigit hexdigit)
+  hexdigit = DIGIT / "a" / "b" / "c" / "d" / "e" / "f"
+  posnumber = NZDIGIT *DIGIT
+  ALPHA =  %x41-5A / %x61-7A
+  LALPHA =  %x41-5A
+  NZDIGIT = %x31-39
+  DIGIT =  %x30-39
+  ```
+
+plus facile à parser, il ne peut y avoir de _ avant une « part »
+
+=> plutôt utiliser _
+   ex. urn:dev:prm:30001610071843_consumption/active_power/raw
+=> on ne respecte pas le standard urn:dev da.s tous les cas on fait ce qu’on veut
+   ex. urn:dev:prm:30001610071843/consumption/active_power/raw
+   ex. urn:dev:prm:30001610071843:consumption/active_power/raw
+
+### Données techniques métier
+
+#### ex. donnée "structurées" en SENML
+
+```json
+[
+     {"bn":"urn:dev:ow:10e2073a01080063","bt":1.320067464e+09,
+      "bu":"%RH","v":20},
+     {"u":"lon","v":24.30621},
+     {"u":"lat","v":60.07965},
+     {"t":60,"v":20.3},
+     {"u":"lon","t":60,"v":24.30622},
+     {"u":"lat","t":60,"v":60.07965},
+     {"t":120,"v":20.7},
+     {"u":"lon","t":120,"v":24.30623},
+     {"u":"lat","t":120,"v":60.07966},
+     {"u":"%EL","t":150,"v":98},
+     {"t":180,"v":21.2},
+     {"u":"lon","t":180,"v":24.30628},
+     {"u":"lat","t":180,"v":60.07967}
+   ]
+```
+
+```json
+  [
+    {"bn":"urn:dev:ow:10e2073a01080063:","n":"temp","u":"Cel","v":23.1},
+    {"n":"label","vs":"Machine Room"},
+    {"n":"open","vb":false},
+    {"n":"nfc-reader","vd":"aGkgCg"}
+  ]
+```
+
+=> value typée semble assez chiant à parser, le lecteur doit connaître le type, on peut mettre des vs partout
+
+#### ex. données Enedis
+
+```python
+{
+    'donneesGenerales': {
+        'etatContractuel': {
+            'libelle': 'En service',
+            'code': 'SERVC'
+        },
+        'adresseInstallation': {
+            'escalierEtEtageEtAppartement': 'B3 RC 01   ',
+            'batiment': 'GOYA BAT B3',
+            'numeroEtNomVoie': '736 CH DES AMES DU PURGATOIRE',
+            'lieuDit': None,
+            'codePostal': '06600',
+            'commune': {
+                'libelle': 'ANTIBES',
+                'code': '06004'
+            }
+        },
+        'dateDerniereModificationFormuleTarifaireAcheminement': None,
+        'dateDerniereAugmentationPuissanceSouscrite': None,
+        'dateDerniereDiminutionPuissanceSouscrite': None,
+        'segment': None,
+        'niveauOuvertureServices': '2'
+    },
+    'situationAlimentation': {
+        'alimentationPrincipale': {
+            'domaineTension': {
+                'libelle': 'BT<=36kVA',
+                'code': 'BTINF'
+            },
+            'tensionLivraison': None,
+            'modeApresCompteur': None,
+            'puissanceRaccordementSoutirage': {
+                'valeur': Decimal('9'),
+                'unite': 'kVA'
+            }
+        }
+    },
+    'situationComptage': {
+        'dispositifComptage': {
+            'typeComptage': {
+                'libelle': 'Compteur Linky',
+                'code': 'LINKY'
+            },
+            'compteurs': {
+                'compteur': [
+                    {
+                        'localisation': {
+                            'libelle': 'Gaine',
+                            'code': 'GAINE'
+                        },
+                        'matricule': '782',
+                        'ticActivee': True,
+                        'ticStandard': False,
+                        'ticActivable': True,
+                        'plagesHeuresCreuses': None,
+                        'parametresTeleAcces': None,
+                        'programmationHoraire': None
+                    }
+                ]
+            },
+            'disjoncteur': {
+                'calibre': {
+                    'libelle': '15-45 A',
+                    'code': '15-45'
+                }
+            },
+            'relais': None,
+            'transformateurCourant': None,
+            'transformateurTension': None
+        },
+        'caracteristiquesReleve': {
+            'modeTraitement': None,
+            'periodicite': {
+                'libelle': 'Mensuelle',
+                'code': 'MENSU'
+            },
+            'plageReleve': None
+        },
+        'modeReleve': None,
+        'mediaReleve': None,
+        'futuresPlagesHeuresCreuses': {
+            'libelle': 'HC (22H56-6H56)',
+            'code': '440'
+        },
+        'futuresProgrammationsHoraires': None
+    },
+    'situationContractuelle': None,
+    'id': '25946599093143'
+}
+```
+
+get(urn:dev:prm:30001610071843/technical)
+
+```xml
+    <quoalise xmlns="urn:quoalise:0">
+      <data>
+        <meta>
+          <device type="electricity-meter">
+            <identifier authority="enedis" type="prm" value="30001610071843"/>
+          </device>
+        </meta>
+        <sensml xmlns="urn:ietf:params:xml:ns:senml">
+          <senml bn="urn:dev:prm:30001610071843_technical/"
+                 bt="1583016600"
+                 n="donneesGenerales/etatContractuel/libelle"
+                 vs="En service"/>
+          <senml n="donneesGenerales/etatContractuel/code"
+                 vs="SERVC"/>
+          <senml n="donneesGenerales/adresseInstallation/escalierEtEtageEtAppartement"
+                 vs="B3 RC 01" />
+          <senml n="donneesGenerales/adresseInstallation/batiment"
+                 vs="GOYA BAT B3" />
+          <senml n="donneesGenerales/adresseInstallation/numeroEtNomVoie"
+                 vs="736 CH DES AMES DU PURGATOIRE" />
+          <senml n="donneesGenerales/adresseInstallation/lieuDit"
+                 vs="" />
+          <senml n="donneesGenerales/adresseInstallation/codePostal"
+                 vs="06600" />
+          <senml n="donneesGenerales/adresseInstallation/commune/libelle"
+                 vs="ANTIBES" />
+          <senml n="donneesGenerales/adresseInstallation/commune/code"
+                 vs="06004" />
+          <!-- … -->
+        </sensml>
+      </data>
+    </quoalise>
+```
+
+TODO données non présente, ex lieu dit
+
+```xml
+    <senml n="donneesGenerales/adresseInstallation/lieuDit" vs="" />
+    <!-- ou carrément ignorer cette données -->
+```
+
+Pourrait aussi être utilisé pour demander juste une valeur
+
+get(urn:dev:prm:30001610071843_technical/donneesGenerales/etatContractuel/code)
+
+get(urn:dev:prm:30001610071843_technical/donneesGenerales/etatContractuel/code)
+
+```xml
+    <quoalise xmlns="urn:quoalise:0">
+      <data>
+        <meta>
+          <device type="electricity-meter">
+            <identifier authority="enedis" type="prm" value="30001610071843"/>
+          </device>
+        </meta>
+        <sensml xmlns="urn:ietf:params:xml:ns:senml">
+          <senml bn="urn:dev:prm:30001610071843_technical/"
+                 bt="1583016600"
+                 n="donneesGenerales/etatContractuel/code"
+                 vs="SERVC"/>
+          <!-- … -->
+        </sensml>
+      </data>
+    </quoalise>
+```
+
+Mais complique dans le cas d’un tableau, il semble y avoir une liste de compteurs.
+
+```python
+'situationComptage': {
+    'compteurs': {
+        'compteur': [
+            {
+                'localisation': {
+                    'libelle': 'Gaine',
+                    'code': 'GAINE'
+                },
+                'matricule': '782',
+                'ticActivee': True,
+                'ticStandard': False,
+                'ticActivable': True,
+                'plagesHeuresCreuses': None,
+                'parametresTeleAcces': None,
+                'programmationHoraire': None
+            },
+            {…}
+        ]
+    },
+}
+```
+
+```xml
+    <quoalise xmlns="urn:quoalise:0">
+      <data>
+        <meta>
+          <device type="electricity-meter">
+            <identifier authority="enedis" type="prm" value="30001610071843"/>
+          </device>
+        </meta>
+        <sensml xmlns="urn:ietf:params:xml:ns:senml">
+          <senml bn="urn:dev:prm:30001610071843_technical/"
+                 bt="1583016600"
+                 n="situationComptage/compteur[0]/matricule"
+                 vs="782"/>
+          <!-- … -->
+        </sensml>
+      </data>
+    </quoalise>
+```
+
+=> Est-ce que un compteur n’est pas un device propre
+urn:dev:prm:30001610071843:0/technical/donneesGenerales/situationComptage/compteur/matricule
+
+ou / dans un autre cas arbitraire
+
+situationComptage/compteur[0]/matricule => [ interdit normalement
+situationComptage/compteur/0/matricule => [ interdit normalement
+
+on pourrrait demander situationComptage/compteur pour avoir la liste
+
+Non présent
+
+          <senml n="donneesGenerales/adresseInstallation/lieuDit"
+                 vs="" />
+=> pas possible de faire la différence entre vide et pas renseigné
+          <senml n="donneesGenerales/adresseInstallation/lieuDit"
+                 v="null" />
+=> comme pour les séries temporelle
+          <senml n="donneesGenerales/adresseInstallation/lieuDit" />
+=> autorisé ? c’est le plus propre, on part là dessus
+
+#### En version non senml
+
+donner directement la réponse Enedis avec son propre namespace déjà défini
+
+#### Si on veut standardiser une partie?
+
+Dans les deux cas on peut donner toutes les données brutes et dupliquer les informations dans les metadonnées :
+
+```xml
+    <quoalise xmlns="urn:quoalise:0">
+      <data>
+        <meta>
+          <device type="electricity-meter">
+            <identifier authority="enedis" type="prm" value="30001610071843"/>
+          </device>
+          <address>
+                <firstname>Christiane</firstname>
+                <lastname>Gellesch</lastname>
+                <address>
+                    <line>Avon House</line>
+                    <line>23 David Place. St. Helier</line>
+                </address>
+                <city>Jersey</city>
+                <postcode>JE2 2TE</postcode>
+          </address>
+        </meta>
+        <sensml xmlns="urn:ietf:params:xml:ns:senml">
+          <!-- … -->
+        </sensml>
+      </data>
+    </quoalise>
 ```
