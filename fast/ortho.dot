@@ -1,0 +1,24 @@
+ digraph {
+    splines="ortho"
+    rankdir="LR"
+
+    node [shape=box]
+    A B C D E F G H I
+
+    node [shape=none, label="", width=0.0, height=0.0]
+    {
+        rank=same;
+        bb->cc->dd->ee->ff->gg->hh->ii [arrowhead="none"]
+    }
+
+    A->bb [arrowhead="none"]
+
+    bb -> B
+    cc -> C
+    dd -> D
+    ee -> E
+    ff -> F
+    gg -> G
+    hh -> H
+    ii -> I
+}

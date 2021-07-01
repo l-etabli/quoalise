@@ -1,0 +1,20 @@
+digraph G {
+  rankdir = LR;
+  subgraph {
+    FS1 [label="Fonction de service 1"]
+    FS1 -> FT1
+      subgraph {
+        FT1 [label="Fonction technique 1"]
+        FT1 -> FT11 [label="Fonction technique 2"]
+
+      }
+    FT2 [label="Fonction technique 2"]
+    FS1 -> FT2
+    maintenir_cap -> B
+    A -> C
+    C -> D
+    X -> Y
+    // note that rank is used in the subgraph
+    {rank = same; FT1; FT2;}
+  } /* closing subgraph */
+}
