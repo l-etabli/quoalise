@@ -21,7 +21,7 @@ export QUOALISE_PASSWORD="************"
 ```
 
 ```bash
-quoalise get-records --server user@xmpp-server.tld --from 2021-01-01 --to 2021-01-07 urn:dev:prm:30001610071843_consumption/active_power/raw
+quoalise get-records user@xmpp-server.tld/resource urn:dev:prm:30001610071843_consumption/active_power/raw --start-date 2021-12-01 --end-date 2021-12-05
 ```
 
 ## Contributing
