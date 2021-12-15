@@ -13,6 +13,14 @@ pip install -e .
 
 ```bash
 quoalise get-records --help
+```
+
+```bash
+export QUOALISE_USER="you@xmppx.io"
+export QUOALISE_PASSWORD="************"
+```
+
+```bash
 quoalise get-records --server user@xmpp-server.tld --from 2021-01-01 --to 2021-01-07 urn:dev:prm:30001610071843_consumption/active_power/raw
 ```
 
