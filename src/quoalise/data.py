@@ -60,19 +60,17 @@ class Record:
 
 
 class Data:
-    def __init__(self, meta, records):
-        self.meta = meta
-        self.records = records
+    def __init__(self, quoalise_xml):
 
-    @classmethod
-    def from_xml(cls, quoalise_xml):
+        self.xml = quoalise_xml
+
         meta = quoalise_xml.find(".//{urn:quoalise:0}data/{urn:quoalise:0}meta")
-        meta = cls.xml_to_dict(meta)["meta"]
+        self.meta = Data.xml_to_dict(meta)["meta"]
+
         records = quoalise_xml.find(
             ".//{urn:quoalise:0}data/{urn:ietf:params:xml:ns:senml}sensml"
         )
-        records = Record.from_senml_xml(records)
-        return Data(meta, records)
+        self.records = Record.from_senml_xml(records)
 
     @classmethod
     def xml_to_dict(cls, t):

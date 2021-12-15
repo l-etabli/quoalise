@@ -9,6 +9,7 @@ from xml.sax.saxutils import escape
 import asyncio
 from .utils import format_iso_date
 from .errors import NotAuthorized
+from .data import Data
 
 
 class ClientAsync:
@@ -71,7 +72,8 @@ class ClientAsync:
 
         command = response.xml.find(".//{http://jabber.org/protocol/commands}command")
         if command.attrib["status"] == "completed":
-            return command.find(".//{urn:quoalise:0}quoalise")
+            data = command.find(".//{urn:quoalise:0}quoalise")
+            return Data(data)
         else:
             raise RuntimeError("Unexpected iq response: " + tostring(response.xml))
 

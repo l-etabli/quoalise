@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 
 from .client import Client
 from .utils import parse_iso_date
-from .data import Data, Record
+from .data import Record
 
 
 def cli():
@@ -76,11 +76,9 @@ def get_records(
     data = client.get_records(data_id, start_date, end_date)
 
     if format == "quoalise":
-        print(minidom.parseString(ET.tostring(data)).toprettyxml(indent="  "))
+        print(minidom.parseString(ET.tostring(data.xml)).toprettyxml(indent="  "))
 
     elif format == "json":
-
-        data = Data.from_xml(data)
 
         def serialize(obj):
             if isinstance(obj, (dt.datetime, dt.date)):
