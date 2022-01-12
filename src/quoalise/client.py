@@ -8,7 +8,7 @@ from xml.etree.ElementTree import fromstring
 from xml.sax.saxutils import escape
 import asyncio
 from .utils import format_iso_date
-from .errors import NotAuthorized
+from .errors import NotAuthorized, ServiceUnavailable
 from .data import Data
 
 
@@ -67,6 +67,8 @@ class ClientAsync:
         except IqError as e:
             if e.condition == "not-authorized":
                 raise NotAuthorized(e.text)
+            elif e.condition == "service-unavailable":
+                raise ServiceUnavailable(e.text)
             else:
                 raise e
 

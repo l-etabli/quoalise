@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from .client import Client
 from .utils import parse_iso_date
 from .data import Record
+from .errors import NotAuthorized, ServiceUnavailable
 
 
 def cli():
@@ -51,15 +52,26 @@ def cli():
     if args.end_date is not None:
         args.end_date = parse_iso_date(args.end_date)
 
-    return get_records(
-        quoalise_user,
-        quoalise_password,
-        args.server_jid,
-        args.data_id,
-        start_date=args.start_date,
-        end_date=args.end_date,
-        format=args.format,
-    )
+    try:
+        return get_records(
+            quoalise_user,
+            quoalise_password,
+            args.server_jid,
+            args.data_id,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            format=args.format,
+        )
+    except NotAuthorized as e:
+        print(f"You are not authorized to access the resource: {e}", file=sys.stderr)
+
+    except ServiceUnavailable as e:
+        print(f"{args.server_jid} is not available: {e}", file=sys.stderr)
+
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+
+    return -1
 
 
 def get_records(
