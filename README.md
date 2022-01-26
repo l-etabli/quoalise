@@ -1,10 +1,32 @@
 # quoalise
 
-## Development
+## Install
 
-Quoalise is not yet available on PyPI. You can install the package in "editable" mode.
+### Using your distribution python package
+
+Install dependencies:
+
+```
+sudo apt install python3-slixmpp
+```
+
+The `quoalise` command can be run from the Python module:
+
+```
+git clone https://github.com/consometers/quoalise.git
+cd quoalise/src
+python3 -m quoalise <arguments>
+```
+
+### In a Python virtual environment
+
+Alternatively, you can install the `quoalise` command in virtual environment. Quoalise is not yet available on PyPI, install the package in "editable" mode:
 
 ```bash
+git clone https://github.com/consometers/quoalise.git
+cd quoalise
+python3 -m venv env
+source env/bin/activate
 pip install -r dev-requirements.txt
 pip install -e .
 ```

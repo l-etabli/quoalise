@@ -83,7 +83,20 @@ class ClientAsync:
     async def connect(cls, client_jid, client_password, server_full_jid):
         xmpp_client = slixmpp.ClientXMPP(client_jid, client_password)
         xmpp_client.connect()
-        await xmpp_client.wait_until("session_start")
+
+        session_stard_event = asyncio.Future()
+
+        def handler(event_data):
+            if not session_stard_event.done():
+                session_stard_event.set_result(event_data)
+
+        xmpp_client.add_event_handler(
+            "session_start",
+            handler,
+            disposable=True,
+        )
+
+        await asyncio.wait_for(session_stard_event, 30)
         return cls(xmpp_client, server_full_jid)
 
     def disconnect(self):
