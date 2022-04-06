@@ -4,9 +4,19 @@ class Error(Exception):
     pass
 
 
+class ConnectionFailed(Error):
+    """Quoalise client is not able to connect to XMPP server"""
+
+    pass
+
+
 class NotAuthorized(Error):
+    """Ressource access is not authorized"""
+
     pass
 
 
 class ServiceUnavailable(Error):
+    """Quoalise service is not connected / is not reachable"""
+
     pass

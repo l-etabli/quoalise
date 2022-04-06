@@ -8,7 +8,7 @@ from xml.etree.ElementTree import fromstring
 from xml.sax.saxutils import escape
 import asyncio
 from .utils import format_iso_date
-from .errors import NotAuthorized, ServiceUnavailable
+from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed
 from .data import Data
 
 
@@ -84,26 +84,68 @@ class ClientAsync:
         xmpp_client = slixmpp.ClientXMPP(client_jid, client_password)
         xmpp_client.connect()
 
-        session_stard_event = asyncio.Future()
+        session_state = asyncio.Future()
+        error = None
 
-        def handler(event_data):
-            if not session_stard_event.done():
-                session_stard_event.set_result(event_data)
+        def session_start_waiter(event_data):
+            if not session_state.done():
+                session_state.set_result(True)
+
+        def session_end_handler(event_data):
+            if not session_state.done():
+                nonlocal error
+                error = ConnectionFailed("XMPP server ended the session")
+                session_state.set_result(False)
+
+        def connection_failed_handler(event_data):
+            if not session_state.done():
+                nonlocal error
+                error = ConnectionFailed(f"XMPP server is not reachable, {event_data}")
+                session_state.set_result(False)
+
+        def failed_auth_handler(event_data):
+            if not session_state.done():
+                nonlocal error
+                error = ConnectionFailed("Invalid username or password")
+                session_state.set_result(False)
 
         xmpp_client.add_event_handler(
             "session_start",
-            handler,
+            session_start_waiter,
             disposable=True,
         )
 
-        await asyncio.wait_for(session_stard_event, 30)
-        return cls(xmpp_client, server_full_jid)
+        xmpp_client.add_event_handler(
+            "session_end",
+            session_end_handler,
+            disposable=True,
+        )
+
+        xmpp_client.add_event_handler(
+            "connection_failed",
+            connection_failed_handler,
+            disposable=True,
+        )
+
+        xmpp_client.add_event_handler(
+            "failed_auth",
+            failed_auth_handler,
+            disposable=True,
+        )
+
+        await asyncio.wait_for(session_state, 10)
+
+        if error:
+            raise error
+
+        client = cls(xmpp_client)
+        return client
 
     def disconnect(self):
         self.xmpp_client.disconnect()
         # Avoids « Task was destroyed but it is pending! » when closing the event loop,
         # might not be needed in future versions
-        self.xmpp_client._run_out_filters.cancel()
+        # self.xmpp_client._run_out_filters.cancel()
 
 
 class Client:
