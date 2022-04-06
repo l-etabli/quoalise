@@ -44,4 +44,5 @@ data = client.get_records(args.server_jid, args.data_id, start_date, end_date)
 writer = csv.writer(sys.stdout)
 
 for record in data.records:
-    writer.writerow([record.time.isoformat(), record.value])
+    time = record.time.isoformat() if record.time is not None else None
+    writer.writerow([time, record.value])

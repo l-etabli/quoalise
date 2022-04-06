@@ -46,7 +46,7 @@ class TestSenml(unittest.TestCase):
         ),
     ]
 
-    def test_build_senml(self):
+    def test_build_senml(self) -> None:
 
         sensml = Sensml()
         sensml.extend(self.DATA_ENERGY)
@@ -65,7 +65,7 @@ class TestSenml(unittest.TestCase):
             self.assertEqual(original.unit, compressed.unit)
             self.assertEqual(original.name, compressed.name)
 
-    def test_metadata(self):
+    def test_metadata(self) -> None:
         as_dict = {
             "device": {
                 "identifier": {
@@ -90,7 +90,7 @@ class TestSenml(unittest.TestCase):
         back_to_dict = Metadata.from_xml(as_xml).as_dict
         self.assertEqual(as_dict, back_to_dict)
 
-    def test_quoalise(self):
+    def test_quoalise(self) -> None:
 
         quoalise = ET.Element("{urn:quoalise:0}quoalise")
 
@@ -99,7 +99,7 @@ class TestSenml(unittest.TestCase):
 
         print(tostring(quoalise))
 
-    def test_senml_utc_timestamp(self):
+    def test_senml_utc_timestamp(self) -> None:
 
         time = dt.datetime.strptime(
             "2021-02-01 00:00:00+0100",
@@ -110,7 +110,7 @@ class TestSenml(unittest.TestCase):
 
         self.assertEqual(expected_timestamp, Sensml.timestamp(time))
 
-    def test_senml_rejects_naive_datetime(self):
+    def test_senml_rejects_naive_datetime(self) -> None:
 
         time = dt.datetime.strptime(
             "2021-02-01 00:00:00",

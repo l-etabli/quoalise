@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Union, Iterable, Tuple, Dict, List, Any
+from typing import Union, Optional, Iterable, Tuple, Dict, List, Any
 import datetime as dt
 from slixmpp.xmlstream import ET
 import pytz
@@ -14,8 +14,8 @@ class Record:
     def __init__(
         self,
         name: str,
-        time: Union[dt.datetime, None],
-        unit: Union[str, None],
+        time: Optional[dt.datetime],
+        unit: Optional[str],
         value: Union[float, int, None] = None,
     ) -> None:
 
@@ -24,12 +24,12 @@ class Record:
         self.value = value
         self.unit = unit
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"<Record {self.name} {self.time} {self.value} {self.unit}>"
 
 
 class Sensml:
-    def __init__(self, xml_element: Union[ET.Element, None] = None) -> None:
+    def __init__(self, xml_element: Optional[ET.Element] = None) -> None:
         if xml_element is None:
             self.xml_element = ET.Element("{urn:ietf:params:xml:ns:senml}sensml")
         else:
@@ -212,11 +212,11 @@ class Metadata:
                 parent.attrib[name] = child
 
     @classmethod
-    def xml_to_dict(cls, t):
+    def xml_to_dict(cls, t: ET.Element) -> Dict[str, Any]:
         # From K3---rnc on
         # https://stackoverflow.com/questions/7684333/converting-xml-to-dictionary-using-elementtree
         _, _, t.tag = t.tag.rpartition("}")  # strip ns
-        d = {t.tag: {} if t.attrib else None}
+        d: Dict[str, Any] = {t.tag: {} if t.attrib else None}
         children = list(t)
         if children:
             dd = defaultdict(list)
@@ -239,9 +239,9 @@ class Metadata:
 class Data:
     def __init__(
         self,
-        metadata: Union[Metadata, None] = None,
-        sensml: Union[Sensml, None] = None,
-        records: Union[Iterable[Record], None] = None,
+        metadata: Optional[Metadata] = None,
+        sensml: Optional[Sensml] = None,
+        records: Optional[Iterable[Record]] = None,
     ) -> None:
 
         if metadata is None:
@@ -274,8 +274,8 @@ class Data:
         element.append(self.sensml.xml_element)
         return element
 
-    def to_json(self, indent: Union[int, None] = None) -> str:
-        def serialize(obj):
+    def to_json(self, indent: Optional[int] = None) -> str:
+        def serialize(obj: Any) -> Union[str, Dict[str, Any]]:
             if isinstance(obj, (dt.datetime, dt.date)):
                 return obj.isoformat()
             if isinstance(obj, Record):

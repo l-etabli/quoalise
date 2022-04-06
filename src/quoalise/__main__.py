@@ -2,15 +2,17 @@ import sys
 import os
 import argparse
 import logging
+from typing import Iterable
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
 from .client import Client
 from .utils import parse_iso_date
 from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed
+from .data import Data
 
 
-def cli():
+def cli() -> int:
 
     parser = argparse.ArgumentParser(description="Access a Quoalise API.")
 
@@ -71,7 +73,7 @@ def cli():
             if args.end_date is not None:
                 args.end_date = parse_iso_date(args.end_date)
 
-            data_stream = [
+            data_stream: Iterable[Data] = [
                 client.get_records(
                     args.server_jid, args.data_id, args.start_date, args.end_date
                 )
