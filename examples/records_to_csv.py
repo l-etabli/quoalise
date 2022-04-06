@@ -8,6 +8,9 @@ import datetime as dt
 
 import quoalise
 
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
+
 parser = argparse.ArgumentParser(
     description="Get records from previous week in a csv file"
 )
@@ -35,8 +38,8 @@ if quoalise_user is None or quoalise_password is None:
 end_date = dt.date.today() - dt.timedelta(days=1)
 start_date = end_date - dt.timedelta(days=6)
 
-client = quoalise.Client.connect(quoalise_user, quoalise_password, args.server_jid)
-data = client.get_records(args.data_id, start_date, end_date)
+client = quoalise.Client.connect(quoalise_user, quoalise_password)
+data = client.get_records(args.server_jid, args.data_id, start_date, end_date)
 
 writer = csv.writer(sys.stdout)
 

@@ -4,6 +4,8 @@ import slixmpp
 
 from slixmpp.xmlstream import tostring
 from slixmpp.exceptions import IqError
+from slixmpp.xmlstream.matcher import MatchXPath
+from slixmpp.xmlstream.handler import CoroutineCallback
 from xml.etree.ElementTree import fromstring
 from xml.sax.saxutils import escape
 import asyncio
@@ -13,15 +15,16 @@ from .data import Data
 
 
 class ClientAsync:
-    def __init__(self, xmpp_client, proxy_full_jid):
+    def __init__(self, xmpp_client):
         self.xmpp_client = xmpp_client
-        self.proxy_full_jid = proxy_full_jid
+        self.incoming_data = asyncio.Queue()
 
-    # Identifier: urn:dev:prm:30001610071843_consumption/active_power/raw
-    async def get_records(self, identifier, start_date=None, end_date=None):
+    async def get_records(
+        self, proxy_full_jid, identifier, start_date=None, end_date=None
+    ):
         iq = self.xmpp_client.Iq()
         iq["type"] = "set"
-        iq["to"] = self.proxy_full_jid
+        iq["to"] = proxy_full_jid
 
         # TODO(cyril) use a proper element builder
 
@@ -74,15 +77,27 @@ class ClientAsync:
 
         command = response.xml.find(".//{http://jabber.org/protocol/commands}command")
         if command.attrib["status"] == "completed":
-            data = command.find(".//{urn:quoalise:0}quoalise")
-            return Data(data)
+            data = command.find(".//{urn:quoalise:0}quoalise/{urn:quoalise:0}data")
+            return Data.from_xml(data)
         else:
             raise RuntimeError("Unexpected iq response: " + tostring(response.xml))
 
     @classmethod
-    async def connect(cls, client_jid, client_password, server_full_jid):
+    async def connect(
+        cls,
+        client_jid,
+        client_password,
+        address=None,
+        priority=-1,
+    ):
+        """
+        priority:
+          Negative prevents to receive messages that are not explicitely
+          addressed to this resource. Use a positive value when waiting for
+          subscription records, use a negative value when polling records.
+        """
         xmpp_client = slixmpp.ClientXMPP(client_jid, client_password)
-        xmpp_client.connect()
+        xmpp_client.connect(address=address)
 
         session_state = asyncio.Future()
         error = None
@@ -139,6 +154,20 @@ class ClientAsync:
             raise error
 
         client = cls(xmpp_client)
+
+        xmpp_client.register_handler(
+            CoroutineCallback(
+                "Quoalise Data",
+                MatchXPath(
+                    "{jabber:client}message/"
+                    + "{urn:quoalise:0}quoalise/{urn:quoalise:0}data"
+                ),
+                client.handle_message_data,
+            )
+        )
+
+        xmpp_client.send_presence(ppriority=priority)
+
         return client
 
     def disconnect(self):
@@ -147,6 +176,18 @@ class ClientAsync:
         # might not be needed in future versions
         # self.xmpp_client._run_out_filters.cancel()
 
+    async def handle_message_data(self, message):
+        data = message.xml.find("{urn:quoalise:0}quoalise/{urn:quoalise:0}data")
+        data = Data.from_xml(data)
+        self.incoming_data.put_nowait(data)
+
+    async def wait_for_data(self):
+        return await self.incoming_data.get()
+
+    async def listen(self):
+        while True:
+            yield self.wait_for_data()
+
 
 class Client:
     def __init__(self, client_async, event_loop):
@@ -154,18 +195,26 @@ class Client:
         self.loop = event_loop
 
     @classmethod
-    def connect(cls, client_jid, client_password, server_full_jid, loop=None):
+    def connect(cls, client_jid, client_password, priority=-1, loop=None, address=None):
         if loop is None:
             loop = asyncio.get_event_loop()
         client_async = loop.run_until_complete(
-            ClientAsync.connect(client_jid, client_password, server_full_jid)
+            ClientAsync.connect(
+                client_jid, client_password, address=address, priority=priority
+            )
         )
         return cls(client_async, loop)
 
-    def get_records(self, identifier, start_date=None, end_date=None):
+    def get_records(self, proxy_full_jid, identifier, start_date=None, end_date=None):
         return self.loop.run_until_complete(
-            self.client_async.get_records(identifier, start_date, end_date)
+            self.client_async.get_records(
+                proxy_full_jid, identifier, start_date, end_date
+            )
         )
+
+    def listen(self):
+        while True:
+            yield self.loop.run_until_complete(self.client_async.wait_for_data())
 
     def disconnect(self):
         self.client_async.disconnect()

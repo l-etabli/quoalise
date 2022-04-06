@@ -1,5 +1,9 @@
 from collections import defaultdict
+from typing import Union, Iterable, Tuple, Dict, List, Any
 import datetime as dt
+from slixmpp.xmlstream import ET
+import pytz
+import json
 
 #
 # Quick and dirty quoalise data interface, to be improved / documented
@@ -7,26 +11,142 @@ import datetime as dt
 
 
 class Record:
-    def __init__(self, name, time, value, unit):
+    def __init__(
+        self,
+        name: str,
+        time: Union[dt.datetime, None],
+        unit: Union[str, None],
+        value: Union[float, int, None] = None,
+    ) -> None:
 
         self.name = name
         self.time = time
         self.value = value
         self.unit = unit
 
+    def __str__(self):
+        return f"<Record {self.name} {self.time} {self.value} {self.unit}>"
+
+
+class Sensml:
+    def __init__(self, xml_element: Union[ET.Element, None] = None) -> None:
+        if xml_element is None:
+            self.xml_element = ET.Element("{urn:ietf:params:xml:ns:senml}sensml")
+        else:
+            self.xml_element = xml_element
+
     @staticmethod
-    def from_senml_xml(xml):
-        records = []
+    def timestamp(time: dt.datetime) -> float:
+        assert (
+            time.tzinfo is not None
+        ), "Naive datetimes are not handled to prevent errors"
+        return time.astimezone(pytz.utc).timestamp()
+
+    def append(self, record: Record) -> None:
+
+        # Instead of looking for current bn, bt, bv, bu from previous
+        # records, reset them all for now.
+        # compress() can be used to get more sensible senml output
+
+        senml = ET.Element(
+            "{urn:ietf:params:xml:ns:senml}senml",
+            bn=record.name,
+        )
+
+        if record.time is not None:
+            senml.attrib["bt"] = str(Sensml.timestamp(record.time))
+
+        if record.value is not None:
+            senml.attrib["bv"] = str(record.value)
+
+        if record.unit is not None:
+            senml.attrib["bu"] = str(record.unit)
+
+        self.xml_element.append(senml)
+
+    def extend(self, records: Iterable[Record]) -> None:
+        for record in records:
+            self.append(record)
+
+    def compress(self) -> None:
+        """
+        Dumb stream compressor
+        """
+        base_name = None
+        base_time = None
+        units = set()
+        for record in self.records():
+            # Set base time to the earliest time in series
+            if base_time is None or record.time < base_time:
+                base_time = record.time
+            # Set base name to the longest common starting substring
+            if base_name is None:
+                base_name = record.name
+            else:
+                while not record.name.startswith(base_name):
+                    base_name = base_name[:-1]
+            # Collect all units
+            units.add(record.unit)
+
+        if len(units) == 1:
+            first = True
+            for record, elem in self.__records_with_elements():
+                if first:
+                    elem.attrib["bu"] = units.pop()
+                    first = False
+                else:
+                    elem.attrib.pop("bu", None)
+                elem.attrib.pop("u", None)
+
+        if base_name:
+            first = True
+            for record, elem in self.__records_with_elements():
+                if first:
+                    elem.attrib["bn"] = base_name
+                    first = False
+                else:
+                    elem.attrib.pop("bn", None)
+                assert record.name.startswith(base_name)
+                name = record.name[len(base_name) :]
+                if name:
+                    elem.attrib["n"] = name
+                else:
+                    elem.attrib.pop("n", None)
+
+        if base_time:
+            base_timestamp = Sensml.timestamp(base_time)
+            first = True
+            for record, elem in self.__records_with_elements():
+                assert record.time is not None
+                if first:
+                    elem.attrib["bt"] = str(base_timestamp)
+                    first = False
+                else:
+                    elem.attrib.pop("bt", None)
+                time = Sensml.timestamp(record.time)
+                time = time - base_timestamp
+                if time:
+                    elem.attrib["t"] = str(time)
+                else:
+                    elem.attrib.pop("t", None)
+
+        # Do not handle base value for now
+        for record, elem in self.__records_with_elements():
+            elem.attrib.pop("bv", None)
+            elem.attrib["v"] = str(record.value)
+
+    def __records_with_elements(self) -> Iterable[Tuple[Record, ET.Element]]:
+
         base_name = None
         base_time = None
         base_unit = None
         base_value = None
 
-        for elem in xml.findall(".//{urn:ietf:params:xml:ns:senml}senml"):
+        for elem in self.xml_element.findall("./{urn:ietf:params:xml:ns:senml}senml"):
             if "bn" in elem.attrib:
                 base_name = elem.attrib["bn"]
             if "bt" in elem.attrib:
-                base_time = int(elem.attrib["bt"])
+                base_time = float(elem.attrib["bt"])
             if "bu" in elem.attrib:
                 base_unit = elem.attrib["bu"]
             if "bv" in elem.attrib:
@@ -38,11 +158,12 @@ class Record:
 
             time = elem.attrib.get("t", None)
             if time is not None:
-                time = int(time)
+                time = float(time)
             if base_time is not None:
                 time = base_time + time if time is not None else base_time
             if time is not None:
                 time = dt.datetime.utcfromtimestamp(time)
+                time = pytz.utc.localize(time)
 
             unit = elem.attrib.get("u", None)
             if base_unit is not None:
@@ -54,23 +175,41 @@ class Record:
             if base_value is not None:
                 value = base_value + value if value is not None else base_value
 
-            record = Record(name, time, value, unit)
-            records.append(record)
-        return records
+            record = Record(name, time, unit, value)
+
+            yield record, elem
+
+    def records(self) -> Iterable[Record]:
+        for record, _ in self.__records_with_elements():
+            yield record
 
 
-class Data:
-    def __init__(self, quoalise_xml):
+class Metadata:
+    def __init__(self, as_dict: Dict[str, Any] = {}) -> None:
+        self.as_dict = as_dict
 
-        self.xml = quoalise_xml
+    @classmethod
+    def from_xml(cls, element: ET.Element) -> "Metadata":
+        assert element.tag == "{urn:quoalise:0}meta"
+        as_dict = cls.xml_to_dict(element)["meta"]
+        return Metadata(as_dict)
 
-        meta = quoalise_xml.find(".//{urn:quoalise:0}data/{urn:quoalise:0}meta")
-        self.meta = Data.xml_to_dict(meta)["meta"]
+    def to_xml(self) -> ET.Element:
+        element = ET.Element("{urn:quoalise:0}meta")
+        Metadata.dict_to_xml(element, self.as_dict)
+        return element
 
-        records = quoalise_xml.find(
-            ".//{urn:quoalise:0}data/{urn:ietf:params:xml:ns:senml}sensml"
-        )
-        self.records = Record.from_senml_xml(records)
+    @classmethod
+    def dict_to_xml(cls, parent: ET.Element, as_dict: Dict[str, Any]) -> None:
+        for name, child in as_dict.items():
+            if name == "#text":
+                raise RuntimeError("Not implemented yet")
+            if isinstance(child, dict):
+                element = ET.Element("{urn:quoalise:0}" + name)
+                parent.append(element)
+                cls.dict_to_xml(element, child)
+            else:
+                parent.attrib[name] = child
 
     @classmethod
     def xml_to_dict(cls, t):
@@ -95,3 +234,66 @@ class Data:
             else:
                 d[t.tag] = text
         return d
+
+
+class Data:
+    def __init__(
+        self,
+        metadata: Union[Metadata, None] = None,
+        sensml: Union[Sensml, None] = None,
+        records: Union[Iterable[Record], None] = None,
+    ) -> None:
+
+        if metadata is None:
+            self.metadata = Metadata()
+        else:
+            self.metadata = metadata
+        if sensml is None:
+            self.sensml = Sensml()
+            if records is not None:
+                self.sensml.extend(records)
+        else:
+            assert records is None
+            self.sensml = sensml
+
+    @classmethod
+    def from_xml(cls, element: ET.Element) -> "Data":
+        assert element.tag == "{urn:quoalise:0}data"
+        meta = element.find("./{urn:quoalise:0}meta")
+        meta = Metadata.from_xml(meta)
+
+        sensml = element.find("./{urn:ietf:params:xml:ns:senml}sensml")
+        sensml = Sensml(sensml)
+
+        return Data(meta, sensml)
+
+    def to_xml(self) -> ET.Element:
+        element = ET.Element("{urn:quoalise:0}data")
+        element.append(self.metadata.to_xml())
+        self.sensml.compress()
+        element.append(self.sensml.xml_element)
+        return element
+
+    def to_json(self, indent: Union[int, None] = None) -> str:
+        def serialize(obj):
+            if isinstance(obj, (dt.datetime, dt.date)):
+                return obj.isoformat()
+            if isinstance(obj, Record):
+                return obj.__dict__
+            return str(obj)
+
+        return json.dumps(
+            {"meta": self.metadata.as_dict, "records": list(self.sensml.records())},
+            indent=indent,
+            default=serialize,
+        )
+
+    # Kept to avoid breaking previous API, might be deprecated soon
+
+    @property
+    def meta(self) -> Dict[str, Any]:
+        return self.metadata.as_dict
+
+    @property
+    def records(self) -> List[Record]:
+        return list(self.sensml.records())

@@ -34,17 +34,31 @@ pip install -e .
 ## Command line usage
 
 ```bash
-quoalise get-records --help
-```
-
-```bash
 export QUOALISE_USER="you@xmppx.io"
 export QUOALISE_PASSWORD="************"
+```
+
+### Get data history
+
+```bash
+quoalise get-records --help
 ```
 
 ```bash
 quoalise get-records user@xmpp-server.tld/resource urn:dev:prm:30001610071843_consumption/active_power/raw --start-date 2021-12-01 --end-date 2021-12-05
 ```
+
+### Listen for subscribed data
+
+```bash
+quoalise listen
+```
+
+Will display json data as soon as received.
+
+## Library usage
+
+Check [examples](./examples/) for basic usage.
 
 ## Contributing
 
