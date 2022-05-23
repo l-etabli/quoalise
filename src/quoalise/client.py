@@ -22,7 +22,7 @@ class ClientAsync:
         self.xmpp_client = xmpp_client
         self.incoming_data: asyncio.Queue[Data] = asyncio.Queue()
 
-    async def get_records(
+    async def get_history(
         self,
         proxy_full_jid: str,
         identifier: str,
@@ -58,7 +58,7 @@ class ClientAsync:
                 f"""
             <command
               xmlns="http://jabber.org/protocol/commands"
-              node="get_records"
+              node="get_history"
               action="execute">
               <x xmlns="jabber:x:data" type="submit">
                 <field var="identifier" type="text-single">
@@ -223,7 +223,7 @@ class Client:
         )
         return cls(client_async, loop)
 
-    def get_records(
+    def get_history(
         self,
         proxy_full_jid: str,
         identifier: str,
@@ -231,7 +231,7 @@ class Client:
         end_date: Optional[dt.date] = None,
     ) -> Data:
         return self.loop.run_until_complete(
-            self.client_async.get_records(
+            self.client_async.get_history(
                 proxy_full_jid, identifier, start_date, end_date
             )
         )

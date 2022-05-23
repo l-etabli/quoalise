@@ -27,7 +27,7 @@ def cli() -> int:
 
     subparsers = parser.add_subparsers(help="command", dest="command")
 
-    parser_client = subparsers.add_parser("get-records", help="Get records")
+    parser_client = subparsers.add_parser("get-history", help="Get history")
     parser_client.add_argument(
         "server_jid",
         help="full jid of the server providing the API, "
@@ -58,7 +58,7 @@ def cli() -> int:
     # Negative priority prevents to receive messages that are not explicitely
     # addressed to this resource. Use a positive value when waiting for
     # subscription records, use a negative value when polling records.
-    if args.command == "get-records":
+    if args.command == "get-history":
         priority = -1
     else:
         priority = 1
@@ -66,7 +66,7 @@ def cli() -> int:
     client = Client.connect(quoalise_user, quoalise_password, priority=priority)
 
     try:
-        if args.command == "get-records":
+        if args.command == "get-history":
             if args.start_date is not None:
                 args.start_date = parse_iso_date(args.start_date)
 
@@ -74,7 +74,7 @@ def cli() -> int:
                 args.end_date = parse_iso_date(args.end_date)
 
             data_stream: Iterable[Data] = [
-                client.get_records(
+                client.get_history(
                     args.server_jid, args.data_id, args.start_date, args.end_date
                 )
             ]

@@ -39,7 +39,7 @@ end_date = dt.date.today() - dt.timedelta(days=1)
 start_date = end_date - dt.timedelta(days=6)
 
 client = quoalise.Client.connect(quoalise_user, quoalise_password)
-data = client.get_records(args.server_jid, args.data_id, start_date, end_date)
+data = client.get_history(args.server_jid, args.data_id, start_date, end_date)
 
 writer = csv.writer(sys.stdout)
 
