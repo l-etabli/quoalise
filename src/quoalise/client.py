@@ -13,7 +13,7 @@ from xml.etree.ElementTree import fromstring
 from xml.sax.saxutils import escape
 import asyncio
 from .utils import format_iso_date
-from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed
+from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed, BadRequest
 from .data import Data
 
 
@@ -79,6 +79,8 @@ class ClientAsync:
                 raise NotAuthorized(e.text)
             elif e.condition == "service-unavailable":
                 raise ServiceUnavailable(e.text)
+            elif e.condition == "bad-request":
+                raise BadRequest(e.text)
             else:
                 raise e
 

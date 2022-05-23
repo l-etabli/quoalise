@@ -16,6 +16,12 @@ class NotAuthorized(Error):
     pass
 
 
+class BadRequest(Error):
+    """Request cannot be processed / value error"""
+
+    pass
+
+
 class ServiceUnavailable(Error):
     """Quoalise service is not connected / is not reachable"""
 
