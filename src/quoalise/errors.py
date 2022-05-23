@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 class Error(Exception):
     """Base class for quoalise errors"""
 
@@ -24,5 +27,22 @@ class BadRequest(Error):
 
 class ServiceUnavailable(Error):
     """Quoalise service is not connected / is not reachable"""
+
+    pass
+
+
+class UpstreamError(Error):
+    """Error and code from data source"""
+
+    def __init__(
+        self,
+        issuer: Optional[str] = None,
+        code: Optional[str] = None,
+        message: Optional[str] = None,
+    ) -> None:
+        self.issuer = issuer
+        self.code = code
+        self.message = message
+        super().__init__(f"{code}: {message}")
 
     pass

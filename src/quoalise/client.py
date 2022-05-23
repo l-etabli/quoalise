@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 
-from typing import Any, AsyncGenerator, Coroutine, Iterator, Tuple, Optional
+from typing import (
+    Any,
+    AsyncGenerator,
+    Coroutine,
+    Iterator,
+    Tuple,
+    Optional,
+    Type,
+    Literal,
+)
+from types import TracebackType
 import datetime as dt
 from xmlrpc.client import boolean
 
@@ -12,8 +22,51 @@ from slixmpp.xmlstream.handler import CoroutineCallback
 from xml.etree.ElementTree import fromstring
 from xml.sax.saxutils import escape
 import asyncio
-from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed, BadRequest
+from .errors import (
+    NotAuthorized,
+    ServiceUnavailable,
+    ConnectionFailed,
+    BadRequest,
+    UpstreamError,
+)
 from .data import Data
+
+
+class IqErrorConverter:
+    """
+    Convert IqError to Quoalise error.
+    """
+
+    def __enter__(self) -> None:
+        pass
+
+    @staticmethod
+    def convert(ex_val: IqError) -> None:
+        if ex_val.condition == "not-authorized":
+            raise NotAuthorized(ex_val.text)
+        elif ex_val.condition == "service-unavailable":
+            raise ServiceUnavailable(ex_val.text)
+        elif ex_val.condition == "bad-request":
+            raise BadRequest(ex_val.text)
+        elif ex_val.condition == "undefined-condition":
+            upstream_error = ex_val.iq.xml.find(".//{urn:quoalise:0}upstream-error")
+            if upstream_error is not None:
+                raise UpstreamError(
+                    issuer=upstream_error.attrib["issuer"],
+                    code=upstream_error.attrib["code"],
+                    message=ex_val.text,
+                )
+
+    def __exit__(
+        self,
+        ex_type: Optional[Type[BaseException]],
+        ex_val: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> Literal[False]:
+        if ex_type is IqError:
+            IqErrorConverter.convert(ex_val)
+        # Raise exception as-is if not handled above
+        return False
 
 
 class ClientAsync:
@@ -75,17 +128,8 @@ class ClientAsync:
             )
         )
 
-        try:
+        with IqErrorConverter():
             response = await iq.send()
-        except IqError as e:
-            if e.condition == "not-authorized":
-                raise NotAuthorized(e.text)
-            elif e.condition == "service-unavailable":
-                raise ServiceUnavailable(e.text)
-            elif e.condition == "bad-request":
-                raise BadRequest(e.text)
-            else:
-                raise e
 
         command = response.xml.find(".//{http://jabber.org/protocol/commands}command")
         if command.attrib["status"] == "completed":
