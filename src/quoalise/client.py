@@ -12,7 +12,6 @@ from slixmpp.xmlstream.handler import CoroutineCallback
 from xml.etree.ElementTree import fromstring
 from xml.sax.saxutils import escape
 import asyncio
-from .utils import format_iso_date
 from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed, BadRequest
 from .data import Data
 
@@ -26,8 +25,8 @@ class ClientAsync:
         self,
         proxy_full_jid: str,
         identifier: str,
-        start_date: Optional[dt.date] = None,
-        end_date: Optional[dt.date] = None,
+        start_time: Optional[dt.datetime] = None,
+        end_time: Optional[dt.datetime] = None,
     ) -> Data:
         iq = self.xmpp_client.Iq()
         iq["type"] = "set"
@@ -35,23 +34,27 @@ class ClientAsync:
 
         # TODO(cyril) use a proper element builder
 
-        if start_date is not None:
-            start_date_field = f"""
-                <field var="start_date" type="text-single">
-                  <value>{escape(format_iso_date(start_date))}</value>
+        if start_time is not None:
+            if start_time.tzinfo is None:
+                raise ValueError("Naive datetimes are not handled to prevent errors")
+            start_time_field = f"""
+                <field var="start_time" type="text-single">
+                  <value>{escape(start_time.isoformat())}</value>
                 </field>
             """
         else:
-            start_date_field = ""
+            start_time_field = ""
 
-        if end_date is not None:
-            end_date_field = f"""
-                <field var="end_date" type="text-single">
-                  <value>{escape(format_iso_date(end_date))}</value>
+        if end_time is not None:
+            if end_time.tzinfo is None:
+                raise ValueError("Naive datetimes are not handled to prevent errors")
+            end_time_field = f"""
+                <field var="end_time" type="text-single">
+                  <value>{escape(end_time.isoformat())}</value>
                 </field>
             """
         else:
-            end_date_field = ""
+            end_time_field = ""
 
         iq.append(
             fromstring(
@@ -64,8 +67,8 @@ class ClientAsync:
                 <field var="identifier" type="text-single">
                   <value>{escape(identifier)}</value>
                 </field>
-                {start_date_field}
-                {end_date_field}
+                {start_time_field}
+                {end_time_field}
               </x>
             </command>
         """
@@ -227,12 +230,12 @@ class Client:
         self,
         proxy_full_jid: str,
         identifier: str,
-        start_date: Optional[dt.date] = None,
-        end_date: Optional[dt.date] = None,
+        start_time: Optional[dt.datetime] = None,
+        end_time: Optional[dt.datetime] = None,
     ) -> Data:
         return self.loop.run_until_complete(
             self.client_async.get_history(
-                proxy_full_jid, identifier, start_date, end_date
+                proxy_full_jid, identifier, start_time, end_time
             )
         )
 

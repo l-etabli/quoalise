@@ -2,12 +2,13 @@ import sys
 import os
 import argparse
 import logging
+import datetime as dt
+import pytz
 from typing import Iterable
 from xml.dom import minidom
 import xml.etree.ElementTree as ET
 
 from .client import Client
-from .utils import parse_iso_date
 from .errors import NotAuthorized, ServiceUnavailable, ConnectionFailed
 from .data import Data
 
@@ -25,19 +26,23 @@ def cli() -> int:
         help="default: %(default)s",
     )
 
+    parser.add_argument(
+        "--tz", help="timezone descriptor, ie. Europe/Paris, local time by default"
+    )
+
     subparsers = parser.add_subparsers(help="command", dest="command")
 
     parser_client = subparsers.add_parser("get-history", help="Get history")
     parser_client.add_argument(
         "server_jid",
         help="full jid of the server providing the API, "
-        + "i.e., sge-proxy@provider.tld/proxy",
+        + "i.e. sge-proxy@provider.tld/proxy",
     )
     parser_client.add_argument(
-        "data_id", help="data identifier, i.e., urn:dev:ow:10e2073a0108006_voltage"
+        "data_id", help="data identifier, i.e. urn:dev:ow:10e2073a0108006_voltage"
     )
-    parser_client.add_argument("--start-date", metavar="YYYY-MM-DD")
-    parser_client.add_argument("--end-date", metavar="YYYY-MM-DD")
+    parser_client.add_argument("--start-time", metavar="YYYY-MM-DDTHH:MM:SSZ")
+    parser_client.add_argument("--end-time", metavar="YYYY-MM-DDTHH:MM:SSZ")
 
     subparsers.add_parser("listen", help="Listen for incoming messages")
 
@@ -45,6 +50,9 @@ def cli() -> int:
 
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
+
+    if args.tz is not None:
+        args.tz = pytz.timezone(args.tz)
 
     quoalise_user = os.environ.get("QUOALISE_USER")
     quoalise_password = os.environ.get("QUOALISE_PASSWORD")
@@ -67,15 +75,18 @@ def cli() -> int:
 
     try:
         if args.command == "get-history":
-            if args.start_date is not None:
-                args.start_date = parse_iso_date(args.start_date)
 
-            if args.end_date is not None:
-                args.end_date = parse_iso_date(args.end_date)
+            if args.start_time is not None:
+                args.start_time = dt.datetime.fromisoformat(args.start_time)
+                args.start_time = args.start_time.astimezone(tz=args.tz)
+
+            if args.end_time is not None:
+                args.end_time = dt.datetime.fromisoformat(args.end_time)
+                args.end_time = args.end_time.astimezone(tz=args.tz)
 
             data_stream: Iterable[Data] = [
                 client.get_history(
-                    args.server_jid, args.data_id, args.start_date, args.end_date
+                    args.server_jid, args.data_id, args.start_time, args.end_time
                 )
             ]
         elif args.command == "listen":
@@ -91,7 +102,7 @@ def cli() -> int:
                     )
                 )
             elif args.format == "json":
-                print(data.to_json(indent=2))
+                print(data.to_json(indent=2, tz=args.tz))
             else:
                 raise ValueError(f"Unexpected format {args.format}")
 
@@ -108,7 +119,7 @@ def cli() -> int:
         if args.debug:
             raise e
         else:
-            print(str(e), file=sys.stderr)
+            print(f"{type(e).__name__}: {e}", file=sys.stderr)
 
     return -1
 

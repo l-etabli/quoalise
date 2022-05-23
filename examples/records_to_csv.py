@@ -5,6 +5,7 @@ import sys
 import argparse
 import csv
 import datetime as dt
+import pytz
 
 import quoalise
 
@@ -35,14 +36,26 @@ if quoalise_user is None or quoalise_password is None:
         + "QUOALISE_PASSWORD should be set to your xmpp password"
     )
 
-end_date = dt.date.today() - dt.timedelta(days=1)
-start_date = end_date - dt.timedelta(days=6)
+# Last available record from history is yesterday at midnight, french time
+paris_tz = pytz.timezone("Europe/Paris")
+end_time = paris_tz.localize(dt.datetime.now()).replace(
+    hour=0, minute=0, second=0, microsecond=0
+)
+
+# pytz provices normalize() to keep timezone consistent
+# when crossing daylight saving time
+start_time = paris_tz.normalize(end_time - dt.timedelta(days=7))
 
 client = quoalise.Client.connect(quoalise_user, quoalise_password)
-data = client.get_history(args.server_jid, args.data_id, start_date, end_date)
+data = client.get_history(args.server_jid, args.data_id, start_time, end_time)
 
 writer = csv.writer(sys.stdout)
 
 for record in data.records:
-    time = record.time.isoformat() if record.time is not None else None
+    # Quoalise use UTC time internally, convert it back to french time
+    time = (
+        record.time.astimezone(paris_tz).isoformat()
+        if record.time is not None
+        else None
+    )
     writer.writerow([time, record.value])

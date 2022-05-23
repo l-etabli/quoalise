@@ -45,7 +45,7 @@ quoalise get-history --help
 ```
 
 ```bash
-quoalise get-history user@xmpp-server.tld/resource urn:dev:prm:30001610071843_consumption/active_power/raw --start-date 2021-12-01 --end-date 2021-12-05
+quoalise get-history user@xmpp-server.tld/resource urn:dev:prm:30001610071843_consumption/power/active/raw --start-time 2021-12-01T00:00+01:00 --end-time 2021-12-05T00:00+01:00
 ```
 
 ### Listen for subscribed data

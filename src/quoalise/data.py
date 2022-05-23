@@ -274,10 +274,12 @@ class Data:
         element.append(self.sensml.xml_element)
         return element
 
-    def to_json(self, indent: Optional[int] = None) -> str:
+    def to_json(
+        self, indent: Optional[int] = None, tz: Optional[dt.tzinfo] = None
+    ) -> str:
         def serialize(obj: Any) -> Union[str, Dict[str, Any]]:
-            if isinstance(obj, (dt.datetime, dt.date)):
-                return obj.isoformat()
+            if isinstance(obj, dt.datetime):
+                return obj.astimezone(tz=tz).isoformat()
             if isinstance(obj, Record):
                 return obj.__dict__
             return str(obj)
