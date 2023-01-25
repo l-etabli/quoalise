@@ -138,6 +138,76 @@ class ClientAsync:
         else:
             raise RuntimeError("Unexpected iq response: " + tostring(response.xml))
 
+    async def subscribe(self, proxy_full_jid: str, identifier: str) -> None:
+        iq = self.xmpp_client.Iq()
+        iq["type"] = "set"
+        iq["to"] = proxy_full_jid
+
+        iq.append(
+            fromstring(
+                f"""
+            <command
+              xmlns="http://jabber.org/protocol/commands"
+              node="subscribe"
+              action="execute">
+              <x xmlns="jabber:x:data" type="submit">
+                <field var="identifier" type="text-single">
+                  <value>{escape(identifier)}</value>
+                </field>
+              </x>
+            </command>
+        """
+            )
+        )
+
+        with IqErrorConverter():
+            response = await iq.send()
+
+        command = response.xml.find(".//{http://jabber.org/protocol/commands}command")
+        if command.attrib["status"] == "completed":
+            # data = command.find(".//{urn:quoalise:0}quoalise/{urn:quoalise:0}data")
+            # return Data.from_xml(data)
+            pass
+        else:
+            raise RuntimeError("Unexpected iq response: " + tostring(response.xml))
+
+    async def unsubscribe(
+        self,
+        proxy_full_jid: str,
+        identifier: str,
+    ) -> None:
+        iq = self.xmpp_client.Iq()
+        iq["type"] = "set"
+        iq["to"] = proxy_full_jid
+
+        iq.append(
+            fromstring(
+                f"""
+            <command
+              xmlns="http://jabber.org/protocol/commands"
+              node="unsubscribe"
+              action="execute">
+              <x xmlns="jabber:x:data" type="submit">
+                <field var="identifier" type="text-single">
+                  <value>{escape(identifier)}</value>
+                </field>
+              </x>
+            </command>
+        """
+            )
+        )
+
+        with IqErrorConverter():
+            response = await iq.send()
+
+        command = response.xml.find(".//{http://jabber.org/protocol/commands}command")
+        if command.attrib["status"] == "completed":
+            # data = command.find(".//{urn:quoalise:0}quoalise/{urn:quoalise:0}data")
+            # return Data.from_xml(data)
+            pass
+        else:
+            raise RuntimeError("Unexpected iq response: " + tostring(response.xml))
+
     @classmethod
     async def connect(
         cls,
@@ -281,6 +351,24 @@ class Client:
             self.client_async.get_history(
                 proxy_full_jid, identifier, start_time, end_time
             )
+        )
+
+    def subscribe(
+        self,
+        proxy_full_jid: str,
+        identifier: str,
+    ) -> None:
+        return self.loop.run_until_complete(
+            self.client_async.subscribe(proxy_full_jid, identifier)
+        )
+
+    def unsubscribe(
+        self,
+        proxy_full_jid: str,
+        identifier: str,
+    ) -> None:
+        return self.loop.run_until_complete(
+            self.client_async.unsubscribe(proxy_full_jid, identifier)
         )
 
     def listen(self) -> Iterator[Data]:
